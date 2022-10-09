@@ -15,17 +15,17 @@ string prefix[4][10]={
   {"","kilia","dilia","trilia","tetralia","pentalia","hexalia","heptalia","octalia","nonalia"}
 };
 
-vi BFS(vvi &g,vi &dis,vi &pre,int start=0){
-  int n=g.size();
-  dis.assign(n,-1);
-  pre.assign(n,-1);
+vi BFS(vvi &graph,vi &dis,vi &pre,int start=0){
+  int n=graph.size();
+  dis.assign(n,-1); // 始点からの距離
+  pre.assign(n,-1); // 経路復元用
   dis[start]=0;
   queue<int> q;
   q.push(start);
   while(!q.empty()){
     int v=q.front();
     q.pop();
-    for(auto nv:g[v]){
+    for(auto nv:graph[v]){
       if(dis[nv]==-1){
         dis[nv]=dis[v]+1;
         pre[nv]=v;
@@ -33,21 +33,21 @@ vi BFS(vvi &g,vi &dis,vi &pre,int start=0){
       }
     }
   }
-  vi ret;
-  int m=*max_element(all(dis));
+  vi ret; // 始点からの距離が最大となる全頂点を格納
+  int m=*max_element(all(dis)); // 最長距離
   rep(i,n) if(dis[i]==m) ret.pb(i);
   return ret;
 }
 
-vvi diameter(vvi &g){
+vvi diameter(vvi &graph){
   vvi ret;
   vi dis,pre;
-  vi edge=BFS(g,dis,pre);
+  vi edge=BFS(graph,dis,pre);
   for(auto x:edge){
-    vi edge_=BFS(g,dis,pre,x);
+    vi edge_=BFS(graph,dis,pre,x);
     for(auto y:edge_){
       vi path;
-      for(int p=y;p!=x;p=pre[p]) path.pb(p);
+      for(int p=y;p!=x;p=pre[p]) path.pb(p); // 経路復元
       path.pb(x);
       ret.pb(path);
     }
@@ -61,11 +61,11 @@ string main_name(int n){
   if(n==3) return "propane";
   if(n==4) return "butane";
   string name="";
-  int p0=n%10,p1=(n/10)%10,p2=(n/100)%10,p3=(n/1000)%10;
-  if(p1==1&&p0==1) name+="undeca";
+  int p0=n%10,p1=(n/10)%10,p2=(n/100)%10,p3=(n/1000)%10; // 桁ごとに分解
+  if(p1==1&&p0==1) name+="undeca"; //例外処理 11
   else{
     name+=prefix[0][p0];
-    if(p1==2&&p0>=2) name+="cosa";
+    if(p1==2&&p0>=2) name+="cosa"; // 例外処理 22-29
     else name+=prefix[1][p1];
   }
   name+=prefix[2][p2];
@@ -121,100 +121,101 @@ string make_name(map<string,vector<pair<pair<string,bool>,vi>>> &m,int len){
   for(auto i:m){
     sort(all(i.se));
     for(auto j:i.se){
-      string sub_name=j.fi.fi;
-      vi pos=j.se;
-      int sub_cnt=pos.size();
+      string sub_name=j.fi.fi; // 置換基名
+      vi pos=j.se; // 置換基の位置番号
+      int sub_cnt=pos.size(); // 置換基の個数
       rep(k,sub_cnt){
         name+=itos(pos[k]);
-        if(k!=sub_cnt-1) name+=',';
-        else name+='-';
+        if(k!=sub_cnt-1) name+=','; // 位置番号はカンマで区切る
+        else name+='-'; // 位置番号と名前の間はハイフンで区切る
       }
+      // 置換基の個数 ＋（位置番号を含む）名前＋ハイフン（置換基同士を区切る）
       if(!j.fi.se) name+=sub_prefix(sub_cnt)+sub_name+'-';
-      else name+=sub_prefix_complex(sub_cnt)+"("+sub_name+")-";
+      else name+=sub_prefix_complex(sub_cnt)+"("+sub_name+")-"; // 複合基は括弧で括る
     }
   }
   if(!name.empty()) name.pop_back();
-  name+=sub_name(len);
+  name+=sub_name(len); // 置換基の母体名
   return name;
 }
 
 string remove_pos(string s){
   reverse(all(s));
-  while(s.back()>'z'||s.back()<'a') s.pop_back();
+  while(s.back()>'z'||s.back()<'a') s.pop_back(); // 初めて小文字アルファベットが現れるまで削除
   reverse(all(s));
   return s;
 }
 
-pair<string,bool> sub_calc(vvi &g,vi &dis,vi &pre,vi &not_main,vi &deg,int start){
-  int n=g.size();
-  dis.assign(n,-1);
-  pre.assign(n,-1);
-  dis[start]=1;
+pair<string,bool> sub_calc(vvi &graph,vi &dis,vi &pre,vi &is_main,vi &deg,int start){
+  int n=graph.size();
+  dis.assign(n,-1); // 分岐点からの距離
+  pre.assign(n,-1); // 経路復元用
+  dis[start]=1; // 探索は分岐点から１つずらす
   queue<int> q;
   q.push(start);
   while(!q.empty()){
     int v=q.front();
     q.pop();
-    for(auto nv:g[v]){
-      if(dis[nv]==-1&&!not_main[nv]){
+    for(auto nv:graph[v]){
+      if(dis[nv]==-1&&!is_main[nv]){ // 未訪問 かつ 何の主鎖でもない
         dis[nv]=dis[v]+1;
         pre[nv]=v;
         q.push(nv);
       }
     }
   }
-  int cnt=0;
-  int len=*max_element(all(dis));
-  vvi longests;
+  int cnt=0; // 主鎖候補数
+  int len=*max_element(all(dis)); // 置換基の長さの最大値
+  vvi longests; // 主鎖候補
   rep(i,n) if(dis[i]==len){
     cnt++;
     vi longest;
-    for(int p=i;p!=start;p=pre[p]) longest.pb(p);
+    for(int p=i;p!=start;p=pre[p]) longest.pb(p); // 経路復元
     longest.pb(start);
     reverse(all(longest));
     longests.pb(longest);
   }
-  int max_sub_cnt=-1;
-  vi sub_cnt(cnt,0);
-  vvi sub_pos(cnt);
+  int max_sub_cnt=-1; // 置換基数の最大値
+  vi sub_cnt(cnt,0); // 各候補の置換基数
+  vvi sub_pos(cnt); // 各候補の置換基の位置
   rep(i,cnt){
     rep(j,len){
       rep(k,deg[longests[i][j]]-2){
-        sub_pos[i].pb(j);
+        sub_pos[i].pb(j); // 置換基の位置を記録
         sub_cnt[i]++;
       }
     }
-    if(max_sub_cnt<sub_cnt[i]) max_sub_cnt=sub_cnt[i];
+    if(max_sub_cnt<sub_cnt[i]) max_sub_cnt=sub_cnt[i]; // 最大値の更新
   }
-  vi main_chain=longests[0];
-  vi min_sub_pos(max_sub_cnt,1<<30);
-  rep(i,cnt){
+  vi main_chain=longests[0]; // 主鎖
+  vi min_sub_pos(max_sub_cnt,1<<30); // 置換基の位置番号の最小値
+  rep(i,cnt){ // 始点が固定なので反転後は比較しない
     if(sub_cnt[i]==max_sub_cnt){
-      if(min_sub_pos>sub_pos[i]){
+      if(min_sub_pos>sub_pos[i]){ // 最小値の更新
         main_chain=longests[i];
         min_sub_pos=sub_pos[i];
       }
     }
   }
-  map<pair<string,bool>,vi> sub_info;
-  rep(i,len) not_main[main_chain[i]]=1;
+  map<pair<string,bool>,vi> sub_info; // key : ｛置換基名，複合基かどうか｝, value : 置換基の位置番号
+  rep(i,len) is_main[main_chain[i]]=1; // 主鎖はこれ以上探索されないようにする
   rep(i,len){
-    vi nex;
-    for(auto j:g[main_chain[i]]) if(!not_main[j]) nex.pb(j);
+    vi nex; // 分岐点から置換基側に１つずらしたところ
+    for(auto j:graph[main_chain[i]]) if(!is_main[j]) nex.pb(j);
     if(nex.size()>=1){
-      auto sub=sub_calc(g,dis,pre,not_main,deg,nex[0]);
+      auto sub=sub_calc(graph,dis,pre,is_main,deg,nex[0]); // 再帰
       sub_info[sub].pb(i+1);
     }
     if(nex.size()==2){
-      auto sub=sub_calc(g,dis,pre,not_main,deg,nex[1]);
+      auto sub=sub_calc(graph,dis,pre,is_main,deg,nex[1]); // 再帰
       sub_info[sub].pb(i+1);
     }
   }
   map<string,vector<pair<pair<string,bool>,vi>>> sub_info_sort;
   for(auto i:sub_info) sub_info_sort[remove_pos(i.fi.fi)].pb(i);
   string name=make_name(sub_info_sort,len);
-  bool is_complex=0;
-  if(max_sub_cnt>0) is_complex=1;
+  bool is_complex=0; // 複合基かどうか
+  if(max_sub_cnt>0) is_complex=1; // 置換基を持つなら複合基
   auto ret=make_pair(name,is_complex);
   return ret;
 }
@@ -237,8 +238,8 @@ void output_name(map<string,vector<pair<pair<string,bool>,vi>>> &m,int len){
     }
   }
   if(!name.empty()) name.pop_back();
-  name+=main_name(len);
-  cout<<name<<'\n';
+  name+=main_name(len); // sub_name(len) -> main_name(len)に
+  cout<<name<<'\n'; // return name; -> cout<<name<<'\n';（出力）に
 }
 
 struct Unionfind{
@@ -266,65 +267,63 @@ struct Unionfind{
 };
 
 int main(){
-  int n;
+  int n; // 頂点数
   cin>>n;
-  vvi g(n);
+  vvi graph(n);
   Unionfind u(n);
-  vi deg(n,0);
+  vi deg(n,0); // 次数を記録
   rep(i,n-1){
     int x,y;
     cin>>x>>y;
-    if(x>n||y>n||x<=0||y<=0){
+    if(x>n||y>n||x<=0||y<=0){ // 入力エラー
       cout<<"!! INPUT ERROR !!"<<'\n';
-      return 0;
+      return 0; // 終了
     }
     x--,y--;
-    g[x].pb(y);
-    g[y].pb(x);
-    if(u.same(x,y)){
+    graph[x].pb(y); graph[y].pb(x);
+    if(u.same(x,y)){ // 環構造
       cout<<"!! RING STRUCTURE !!"<<'\n';
       return 0;
     }
     u.unite(x,y);
     deg[x]++,deg[y]++;
   }
-  auto start = std::chrono::system_clock::now();
   rep(i,n){
-    if(deg[i]>4){
+    if(deg[i]>4){ // 次数が４より大
       cout<<"!! TOO MANY BONDS !!"<<'\n';
       return 0;
     }
   }
-  vvi dia=diameter(g);
-  int cnt=dia.size();
-  int len=dia[0].size();
-  int max_sub_cnt=-1;
-  vi sub_cnt(cnt,0);
-  vvi sub_pos(cnt);
+  vvi dia=diameter(graph); // 全主鎖候補
+  int cnt=dia.size(); // 候補数
+  int len=dia[0].size(); // 主鎖の長さ
+  int max_sub_cnt=-1; // 置換基数の最大値
+  vi sub_cnt(cnt,0); // 各候補の置換基数
+  vvi sub_pos(cnt); // 各候補の置換基の位置
   rep(i,cnt){
     rep(j,len){
       rep(k,deg[dia[i][j]]-2){
-        sub_pos[i].pb(j);
+        sub_pos[i].pb(j); // 置換基の位置を記録
         sub_cnt[i]++;
       }
     }
-    if(max_sub_cnt<sub_cnt[i]) max_sub_cnt=sub_cnt[i];
+    if(max_sub_cnt<sub_cnt[i]) max_sub_cnt=sub_cnt[i];  // 最大値の更新
   }
-  vi main_chain=dia[0];
-  vi min_sub_pos(max_sub_cnt,1<<30);
-  int flag=0;
+  vi main_chain=dia[0]; // 主鎖
+  vi min_sub_pos(max_sub_cnt,1<<30); // 置換基の位置番号の最小値
+  int flag=0; // 始点が決定しているかどうか
   rep(i,cnt){
     if(sub_cnt[i]==max_sub_cnt){
-      vi sub_pos_rev=sub_pos[i];
+      vi sub_pos_rev=sub_pos[i]; // 反転したものも比較
       reverse(all(sub_pos_rev));
       rep(j,max_sub_cnt) sub_pos_rev[j]=len-1-sub_pos_rev[j];
-      if(min_sub_pos>sub_pos[i]||min_sub_pos>sub_pos_rev){
+      if(min_sub_pos>sub_pos[i]||min_sub_pos>sub_pos_rev){ // 最小値の更新
         main_chain=dia[i];
         min_sub_pos=sub_pos[i];
-        if(sub_pos[i]==sub_pos_rev) flag=0;
+        if(sub_pos[i]==sub_pos_rev) flag=0; // 始点未決定
         else{
-          flag=1;
-          if(sub_pos_rev<sub_pos[i]){
+          flag=1; // 始点決定
+          if(sub_pos_rev<sub_pos[i]){ // 反転後が勝ちの場合
             reverse(all(main_chain));
             reverse(all(min_sub_pos));
           }
@@ -334,17 +333,17 @@ int main(){
   }
   if(flag){
     map<pair<string,bool>,vi> sub_info;
-    vi dis,pre,not_main(n,0);
-    rep(i,len) not_main[main_chain[i]]=1;
+    vi dis,pre,is_main(n,0);
+    rep(i,len) is_main[main_chain[i]]=1;
     rep(i,len){
       vi nex;
-      for(auto j:g[main_chain[i]]) if(!not_main[j]) nex.pb(j);
+      for(auto j:graph[main_chain[i]]) if(!is_main[j]) nex.pb(j);
       if(nex.size()>=1){
-        auto sub=sub_calc(g,dis,pre,not_main,deg,nex[0]);
+        auto sub=sub_calc(graph,dis,pre,is_main,deg,nex[0]);
         sub_info[sub].pb(i+1);
       }
       if(nex.size()==2){
-        auto sub=sub_calc(g,dis,pre,not_main,deg,nex[1]);
+        auto sub=sub_calc(graph,dis,pre,is_main,deg,nex[1]);
         sub_info[sub].pb(i+1);
       }
     }
@@ -356,29 +355,29 @@ int main(){
     vi main_chain_rev=main_chain;
     reverse(all(main_chain_rev));
     map<pair<string,bool>,vi> sub_info,sub_info_rev;
-    vi dis,pre,not_main(n,0),not_main_rev(n,0);
+    vi dis,pre,is_main(n,0),is_main_rev(n,0);
     rep(i,len){
-      not_main[main_chain[i]]=1;
-      not_main_rev[main_chain_rev[i]]=1;
+      is_main[main_chain[i]]=1;
+      is_main_rev[main_chain_rev[i]]=1;
     }
     rep(i,len){
       vi nex,nex_rev;
-      for(auto j:g[main_chain[i]]) if(!not_main[j]) nex.pb(j);
+      for(auto j:graph[main_chain[i]]) if(!is_main[j]) nex.pb(j);
       if(nex.size()>=1){
-        auto sub=sub_calc(g,dis,pre,not_main,deg,nex[0]);
+        auto sub=sub_calc(graph,dis,pre,is_main,deg,nex[0]);
         sub_info[sub].pb(i+1);
       }
       if(nex.size()==2){
-        auto sub=sub_calc(g,dis,pre,not_main,deg,nex[1]);
+        auto sub=sub_calc(graph,dis,pre,is_main,deg,nex[1]);
         sub_info[sub].pb(i+1);
       }
-      for(auto j:g[main_chain_rev[i]]) if(!not_main_rev[j]) nex_rev.pb(j);
+      for(auto j:graph[main_chain_rev[i]]) if(!is_main_rev[j]) nex_rev.pb(j);
       if(nex.size()>=1){
-        auto sub=sub_calc(g,dis,pre,not_main_rev,deg,nex_rev[0]);
+        auto sub=sub_calc(graph,dis,pre,is_main_rev,deg,nex_rev[0]);
         sub_info_rev[sub].pb(i+1);
       }
       if(nex.size()==2){
-        auto sub=sub_calc(g,dis,pre,not_main_rev,deg,nex_rev[1]);
+        auto sub=sub_calc(graph,dis,pre,is_main_rev,deg,nex_rev[1]);
         sub_info_rev[sub].pb(i+1);
       }
     }
